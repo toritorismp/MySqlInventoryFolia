@@ -90,12 +90,21 @@ public class MainManageData {
 
         BackupHandler.shutdown();
 
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            savePlayer(player);
-            player.kickPlayer("Server restarting...");
+        Collection<? extends Player> players = Bukkit.getOnlinePlayers();
+
+        for (Player player : players) {
+
+            // ★修正：必ず同期で保存＆キック順序保証
+            Bukkit.getScheduler().runTask(Main.main, () -> {
+                savePlayer(player);
+                player.kickPlayer("Server restarting...");
+            });
         }
 
-        shutdown();
+        // ★修正：少し遅延してからDB切断（安全化）
+        Bukkit.getScheduler().runTaskLater(Main.main, () -> {
+            shutdown();
+        }, 40L);
     }
 
     public static void shutdown() {
@@ -138,14 +147,24 @@ public class MainManageData {
             player.setFoodLevel(20);
             player.setLevel(0);
         }
+
         try {
             player.getInventory().addItem(player.getItemOnCursor());
             player.setItemOnCursor(new ItemStack(Material.AIR));
         } catch (Exception ignored) { }
+
         if (storageType == StorageType.MYSQL) {
-            ManageMySQLData.savePlayer(player, InventoryManager.saveItems(player, player.getInventory()), InventoryManager.saveEChest(player));
+            ManageMySQLData.savePlayer(
+                    player,
+                    InventoryManager.saveItems(player, player.getInventory()),
+                    InventoryManager.saveEChest(player)
+            );
         } else if (storageType == StorageType.MONGODB) {
-            ManageMongoData.savePlayer(player, InventoryManager.saveItems(player, player.getInventory()), InventoryManager.saveEChest(player));
+            ManageMongoData.savePlayer(
+                    player,
+                    InventoryManager.saveItems(player, player.getInventory()),
+                    InventoryManager.saveEChest(player)
+            );
         }
     }
 
@@ -154,6 +173,7 @@ public class MainManageData {
             player.getInventory().addItem(player.getItemOnCursor());
             player.setItemOnCursor(new ItemStack(Material.AIR));
         } catch (Exception ignored) { }
+
         if (storageType == StorageType.MYSQL) {
             ManageMySQLData.savePlayer(player, customSyncSettings);
         } else if (storageType == StorageType.MONGODB) {
@@ -162,10 +182,8 @@ public class MainManageData {
     }
 
     public enum StorageType {
-
         MYSQL,
         MONGODB,
-        CLOUD; // For a future Update
-
+        CLOUD;
     }
 }

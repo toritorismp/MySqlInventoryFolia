@@ -41,7 +41,7 @@ public class FoliaScheduler implements Scheduler {
 
     @Override
     public void cancelBackupTask() {
-        // AsyncSchedulerは個別保持不要（必要ならFuture管理）
+        // AsyncSchedulerは個別保持不要
     }
 
     @Override
@@ -49,7 +49,7 @@ public class FoliaScheduler implements Scheduler {
 
         player.getScheduler().runDelayed(Main.main, task -> {
             MainManageData.loadPlayer(player);
-        }, null, 40L);
+        }, null, 20L); // 40L → 20L（軽減）
     }
 
     @Override
@@ -101,9 +101,13 @@ public class FoliaScheduler implements Scheduler {
     @Override
     public void scheduleMySQLGeneratePlayer(Player player) {
 
+        // ★修正：Player参照はそのままでもOKだが必ず async 内はDBだけにする想定
         asyncScheduler.runDelayed(
                 Main.main,
-                task -> ManageMySQLData.generatePlayer(player),
+                task -> {
+                    // ここはDB専用なのでOK
+                    ManageMySQLData.generatePlayer(player);
+                },
                 1L,
                 TimeUnit.SECONDS
         );
@@ -112,22 +116,18 @@ public class FoliaScheduler implements Scheduler {
     @Override
     public void scheduleMySQLSavePlayer(Player player, String invBase64, String ecBase64) {
 
-        asyncScheduler.runDelayed(
-                Main.main,
-                task -> ManageMySQLData.savePlayer(player, invBase64, ecBase64),
-                1L,
-                TimeUnit.SECONDS
-        );
+        // ★重要修正：Playerをasyncで直接触らないように syncへ移動
+        player.getScheduler().run(Main.main, task -> {
+            ManageMySQLData.savePlayer(player, invBase64, ecBase64);
+        }, null);
     }
 
     @Override
     public void scheduleMySQLSavePlayer(Player player, CustomSyncSettings customSyncSettings) {
 
-        asyncScheduler.runDelayed(
-                Main.main,
-                task -> ManageMySQLData.savePlayer(player, customSyncSettings),
-                1L,
-                TimeUnit.SECONDS
-        );
+        // ★重要修正：同じくsync実行へ変更
+        player.getScheduler().run(Main.main, task -> {
+            ManageMySQLData.savePlayer(player, customSyncSettings);
+        }, null);
     }
 }
