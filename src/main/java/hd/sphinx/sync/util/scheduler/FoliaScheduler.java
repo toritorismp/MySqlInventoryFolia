@@ -10,124 +10,87 @@ import hd.sphinx.sync.backup.BackupHandler;
 import hd.sphinx.sync.backup.CustomSyncSettings;
 import hd.sphinx.sync.mysql.ManageMySQLData;
 import hd.sphinx.sync.util.ConfigManager;
-
 import io.papermc.paper.threadedregions.scheduler.AsyncScheduler;
+import io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class FoliaScheduler implements Scheduler {
 
     private final AsyncScheduler asyncScheduler;
+    private final GlobalRegionScheduler globalRegionScheduler;
+
+    private ScheduledTask backupTask;
 
     public FoliaScheduler() {
-        this.asyncScheduler = Bukkit.getAsyncScheduler();
+        asyncScheduler = Bukkit.getAsyncScheduler();
+        globalRegionScheduler = Bukkit.getGlobalRegionScheduler();
     }
 
     @Override
     public void scheduleBackupTask() {
-
-        asyncScheduler.runAtFixedRate(
-                Main.main,
-                task -> BackupHandler.handleCycle(),
-                0L,
-                ConfigManager.config.getInt("settings.backup.backupCycle") / 20L,
-                TimeUnit.SECONDS
-        );
+        backupTask = asyncScheduler.runAtFixedRate(Main.main, t -> {
+            BackupHandler.handleCycle();
+        }, 0L, ConfigManager.config.getInt("settings.backup.backupCycle") / 20, TimeUnit.SECONDS);
     }
 
     @Override
     public void cancelBackupTask() {
-        // AsyncSchedulerは個別保持不要
+        backupTask.cancel();
     }
 
     @Override
     public void scheduleJoin(Player player) {
-
-        player.getScheduler().runDelayed(Main.main, task -> {
+        globalRegionScheduler.runDelayed(Main.main, t -> {
             MainManageData.loadPlayer(player);
-        }, null, 20L); // 40L → 20L（軽減）
+        }, 40L);
     }
 
     @Override
     public void scheduleExecuteCommands(Player player) {
-
-        player.getScheduler().run(Main.main, task -> {
-
+        globalRegionScheduler.runDelayed(Main.main, t -> {
             MainManageData.loadedPlayerData.remove(player);
-
-            List<String> commands =
-                    MainManageData.commandHashMap.getOrDefault(player, new ArrayList<>());
-
-            for (String command : commands) {
-                if (command == null) continue;
+            for (String command : MainManageData.commandHashMap.get(player)) {
                 player.performCommand(command.replaceFirst("/", ""));
             }
-
-        }, null);
+        }, 5L);
     }
 
     @Override
     public void scheduleCompleteLoadEvent(Player player, SyncProfile syncProfile) {
-
-        player.getScheduler().run(Main.main, task -> {
-            Bukkit.getPluginManager().callEvent(
-                    new CompletedLoadingPlayerDataEvent(
-                            player,
-                            new SyncSettings(),
-                            syncProfile
-                    )
-            );
-        }, null);
+        globalRegionScheduler.runDelayed(Main.main, t -> {
+            Bukkit.getPluginManager().callEvent(new CompletedLoadingPlayerDataEvent(player, new SyncSettings(), syncProfile));
+        }, 5L);
     }
 
     @Override
     public void scheduleSavingDataEvent(Player player, SyncProfile syncProfile) {
-
-        player.getScheduler().run(Main.main, task -> {
-            Bukkit.getPluginManager().callEvent(
-                    new SavingPlayerDataEvent(
-                            player,
-                            new SyncSettings(),
-                            syncProfile
-                    )
-            );
-        }, null);
+        globalRegionScheduler.runDelayed(Main.main, t -> {
+            Bukkit.getPluginManager().callEvent(new SavingPlayerDataEvent(player, new SyncSettings(), syncProfile));
+        }, 5L);
     }
 
     @Override
     public void scheduleMySQLGeneratePlayer(Player player) {
-
-        // ★修正：Player参照はそのままでもOKだが必ず async 内はDBだけにする想定
-        asyncScheduler.runDelayed(
-                Main.main,
-                task -> {
-                    // ここはDB専用なのでOK
-                    ManageMySQLData.generatePlayer(player);
-                },
-                1L,
-                TimeUnit.SECONDS
-        );
+        asyncScheduler.runDelayed(Main.main, t -> {
+            ManageMySQLData.generatePlayer(player);
+        }, 1L, TimeUnit.SECONDS);
     }
 
     @Override
     public void scheduleMySQLSavePlayer(Player player, String invBase64, String ecBase64) {
-
-        // ★重要修正：Playerをasyncで直接触らないように syncへ移動
-        player.getScheduler().run(Main.main, task -> {
+        asyncScheduler.runDelayed(Main.main, t -> {
             ManageMySQLData.savePlayer(player, invBase64, ecBase64);
-        }, null);
+        }, 1L, TimeUnit.SECONDS);
     }
 
     @Override
     public void scheduleMySQLSavePlayer(Player player, CustomSyncSettings customSyncSettings) {
-
-        // ★重要修正：同じくsync実行へ変更
-        player.getScheduler().run(Main.main, task -> {
+        asyncScheduler.runDelayed(Main.main, t -> {
             ManageMySQLData.savePlayer(player, customSyncSettings);
-        }, null);
+        }, 1L, TimeUnit.SECONDS);
     }
 }

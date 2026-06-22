@@ -7,14 +7,14 @@
     <groupId>hd.sphinx</groupId>
     <artifactId>MySQL-Sync</artifactId>
 
-    <version>1.0-SNAPSHOT</version>
+    <version>1.4.15-DEV-02</version>
     <packaging>jar</packaging>
 
     <name>MySQL-Sync</name>
 
     <description>Syncs Player Data between Servers</description>
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <url>https://pixelation-games.net</url>
@@ -33,7 +33,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.6.0</version>
+                <version>3.6.2</version>
                 <configuration>
                     <relocations>
                         <relocation>

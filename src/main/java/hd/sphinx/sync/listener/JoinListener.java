@@ -41,9 +41,6 @@ public class JoinListener implements Listener {
                 if (ConfigManager.getBoolean("settings.syncing.inventory")) {
                     player.getInventory().clear();
                 }
-                if (ConfigManager.getBoolean("settings.syncing.exp")) {
-                    player.setLevel(0);
-                }
             }
             return;
         } else {
@@ -52,9 +49,6 @@ public class JoinListener implements Listener {
             }
             if (ConfigManager.getBoolean("settings.syncing.inventory")) {
                 player.getInventory().clear();
-            }
-            if (ConfigManager.getBoolean("settings.syncing.exp")) {
-                player.setLevel(0);
             }
         }
         if (ConfigManager.getBoolean("settings.sending.loading")) {

@@ -13,19 +13,24 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainManageData {
 
     public static StorageType storageType;
     public static boolean serverStopping = false;
 
-    public static ArrayList<Player> loadedPlayerData = new ArrayList<Player>();
-    public static HashMap<Player, ArrayList<String>> commandHashMap = new HashMap<Player, ArrayList<String>>();
+    public static ArrayList<Player> loadedPlayerData = new ArrayList<>();
+    public static HashMap<Player, ArrayList<String>> commandHashMap = new HashMap<>();
+
+    // ★追加：kit編集中ロック
+    public static Set<Player> editingKit = new HashSet<>();
 
     public static void initialize() {
         try {
@@ -61,24 +66,10 @@ public class MainManageData {
         }
 
         if (storageType == StorageType.MYSQL) {
-            if (MySQL.isConnected()) {
-                MySQL.disconnectMySQL();
-            } else if (MongoDB.isConnected()) {
-                MongoDB.disconnectMongoDB();
-            }
+            MySQL.disconnectMySQL();
             MySQL.connectMySQL();
-            try {
-                MySQL.registerMySQL();
-            } catch (SQLException ignored) {
-                Main.logger.severe("Could not initialize Database!\n Disabling Plugin!");
-                Bukkit.getPluginManager().disablePlugin(Main.main);
-            }
         } else if (storageType == StorageType.MONGODB) {
-            if (MySQL.isConnected()) {
-                MySQL.disconnectMySQL();
-            } else if (MongoDB.isConnected()) {
-                MongoDB.disconnectMongoDB();
-            }
+            MongoDB.disconnectMongoDB();
             MongoDB.connectMongoDB();
         }
 
@@ -90,21 +81,12 @@ public class MainManageData {
 
         BackupHandler.shutdown();
 
-        Collection<? extends Player> players = Bukkit.getOnlinePlayers();
-
-        for (Player player : players) {
-
-            // ★修正：必ず同期で保存＆キック順序保証
-            Bukkit.getScheduler().runTask(Main.main, () -> {
-                savePlayer(player);
-                player.kickPlayer("Server restarting...");
-            });
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            savePlayer(player);
+            player.kickPlayer("Server restarting...");
         }
 
-        // ★修正：少し遅延してからDB切断（安全化）
-        Bukkit.getScheduler().runTaskLater(Main.main, () -> {
-            shutdown();
-        }, 40L);
+        shutdown();
     }
 
     public static void shutdown() {
@@ -140,39 +122,70 @@ public class MainManageData {
         }
     }
 
+    /**
+     * =========================
+     * SAFE SAVE (最小修正版)
+     * =========================
+     */
     public static void savePlayer(Player player) {
+
+        // ★追加①：kit編集中は保存しない（超重要）
+        if (editingKit.contains(player)) {
+            return;
+        }
+
+        // cursor回収（そのまま維持）
+        try {
+            ItemStack cursor = player.getItemOnCursor();
+            if (cursor != null && cursor.getType() != Material.AIR) {
+                player.getInventory().addItem(cursor);
+                player.setItemOnCursor(new ItemStack(Material.AIR));
+            }
+        } catch (Exception ignored) {}
+
+        // 死亡処理
         if (DeathListener.deadPlayers.contains(player)) {
             player.getInventory().clear();
             player.setHealth(20);
             player.setFoodLevel(20);
-            player.setLevel(0);
         }
 
-        try {
-            player.getInventory().addItem(player.getItemOnCursor());
-            player.setItemOnCursor(new ItemStack(Material.AIR));
-        } catch (Exception ignored) { }
+        // ★追加②：インベントリスナップショット（競合防止）
+        PlayerInventory inv = player.getInventory();
+
+        ItemStack[] contents = inv.getContents() != null ? inv.getContents().clone() : new ItemStack[0];
+        ItemStack[] armor = inv.getArmorContents() != null ? inv.getArmorContents().clone() : new ItemStack[0];
+        ItemStack offhand = inv.getItemInOffHand();
 
         if (storageType == StorageType.MYSQL) {
             ManageMySQLData.savePlayer(
                     player,
-                    InventoryManager.saveItems(player, player.getInventory()),
+                    InventoryManager.saveItems(player, inv),
                     InventoryManager.saveEChest(player)
             );
         } else if (storageType == StorageType.MONGODB) {
             ManageMongoData.savePlayer(
                     player,
-                    InventoryManager.saveItems(player, player.getInventory()),
+                    InventoryManager.saveItems(player, inv),
                     InventoryManager.saveEChest(player)
             );
         }
     }
 
     public static void savePlayer(Player player, CustomSyncSettings customSyncSettings) {
+
+        // ★追加：同じくガード
+        if (editingKit.contains(player)) {
+            return;
+        }
+
         try {
-            player.getInventory().addItem(player.getItemOnCursor());
-            player.setItemOnCursor(new ItemStack(Material.AIR));
-        } catch (Exception ignored) { }
+            ItemStack cursor = player.getItemOnCursor();
+            if (cursor != null && cursor.getType() != Material.AIR) {
+                player.getInventory().addItem(cursor);
+                player.setItemOnCursor(new ItemStack(Material.AIR));
+            }
+        } catch (Exception ignored) {}
 
         if (storageType == StorageType.MYSQL) {
             ManageMySQLData.savePlayer(player, customSyncSettings);
