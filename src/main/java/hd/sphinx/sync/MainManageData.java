@@ -138,6 +138,9 @@ public class MainManageData {
         try {
             ItemStack cursor = player.getItemOnCursor();
             if (cursor != null && cursor.getType() != Material.AIR) {
+                if (player.getOpenInventory().getTopInventory().getSize() > 0) {
+                    return;
+                }
                 player.getInventory().addItem(cursor);
                 player.setItemOnCursor(new ItemStack(Material.AIR));
             }
@@ -157,17 +160,20 @@ public class MainManageData {
         ItemStack[] armor = inv.getArmorContents() != null ? inv.getArmorContents().clone() : new ItemStack[0];
         ItemStack offhand = inv.getItemInOffHand();
 
+        String ecBase64 = InventoryManager.saveEChest(player);
+        if (ecBase64 == null) return;
+
         if (storageType == StorageType.MYSQL) {
             ManageMySQLData.savePlayer(
                     player,
                     InventoryManager.saveItems(player, inv),
-                    InventoryManager.saveEChest(player)
+                    ecBase64
             );
         } else if (storageType == StorageType.MONGODB) {
             ManageMongoData.savePlayer(
                     player,
                     InventoryManager.saveItems(player, inv),
-                    InventoryManager.saveEChest(player)
+                    ecBase64
             );
         }
     }
@@ -182,6 +188,9 @@ public class MainManageData {
         try {
             ItemStack cursor = player.getItemOnCursor();
             if (cursor != null && cursor.getType() != Material.AIR) {
+                if (player.getOpenInventory().getTopInventory().getSize() > 0) {
+                    return;
+                }
                 player.getInventory().addItem(cursor);
                 player.setItemOnCursor(new ItemStack(Material.AIR));
             }

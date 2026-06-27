@@ -19,6 +19,10 @@ public class BackupHandler {
     }
 
     public static void handleCycle() {
+        Main.schedulerManager.getScheduler().scheduleBackupCycle();
+    }
+
+    public static void processCycle() {
         Boolean inventory = getSaveBool("inventory");
         Boolean enderchest = getSaveBool("enderchest");
         Boolean exp = getSaveBool("exp");
@@ -28,16 +32,14 @@ public class BackupHandler {
         Boolean effects = getSaveBool("effects");
         Boolean advancements = getSaveBool("advancements");
         Boolean statistics = getSaveBool("statistics");
-        HashMap<Player, CachePlayer> playerCache = new HashMap<Player, CachePlayer>();
+
+        HashMap<Player, CachePlayer> playerCache = new HashMap<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            CachePlayer cachePlayer;
-            if (playerCache.containsKey(player)) {
-                cachePlayer = playerCache.get(player);
-            } else {
-                cachePlayer = new CachePlayer(player);
-                playerCache.put(player, cachePlayer);
-            }
+            if (MainManageData.loadedPlayerData.contains(player)) continue;
+
+            CachePlayer cachePlayer = playerCache.computeIfAbsent(player, CachePlayer::new);
             CustomSyncSettings customSyncSettings = new CustomSyncSettings();
+
             if (inventory && !cachePlayer.compareInventory(player.getInventory())) {
                 cachePlayer.setInventory(player.getInventory());
                 customSyncSettings.setSyncingInventory(true);
@@ -74,6 +76,7 @@ public class BackupHandler {
                 cachePlayer.setStatistics(StatisticsManager.getStatisticsMap(player));
                 customSyncSettings.setSyncingStatistics(true);
             }
+
             MainManageData.savePlayer(player, customSyncSettings);
         }
     }

@@ -1,5 +1,6 @@
 package hd.sphinx.sync.util;
 
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -41,11 +42,17 @@ public class InventoryManager {
     }
 
     public static String saveEChest(@NotNull Player player) {
+        ItemStack cursor = player.getItemOnCursor();
+        boolean hasOpenEChest = player.getOpenInventory().getTopInventory()
+                .equals(player.getEnderChest());
+
+        if (hasOpenEChest && cursor != null && cursor.getType() != Material.AIR) {
+            return null;
+        }
+
         ItemStack[] items = new ItemStack[27];
-        int i = 0;
-        while (i <= 26) {
+        for (int i = 0; i <= 26; i++) {
             items[i] = player.getEnderChest().getItem(i);
-            i++;
         }
         return BukkitSerialization.itemStackArrayToBase64(items);
     }

@@ -41,6 +41,12 @@ public class FoliaScheduler implements Scheduler {
     public void cancelBackupTask() {
         backupTask.cancel();
     }
+    @Override
+    public void scheduleBackupCycle() {
+        globalRegionScheduler.run(Main.main, t -> {
+            BackupHandler.processCycle();
+        });
+    }
 
     @Override
     public void scheduleJoin(Player player) {

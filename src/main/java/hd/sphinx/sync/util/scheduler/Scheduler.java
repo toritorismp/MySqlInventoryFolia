@@ -8,6 +8,7 @@ public interface Scheduler {
 
     public void scheduleBackupTask();
     public void cancelBackupTask();
+    public void scheduleBackupCycle();
 
     public void scheduleJoin(Player player);
 

@@ -31,6 +31,15 @@ public class SpigotScheduler implements Scheduler {
     public void cancelBackupTask() {
         Bukkit.getScheduler().cancelTask(backupTaskID);
     }
+    @Override
+    public void scheduleBackupCycle() {
+        Bukkit.getScheduler().runTask(Main.main, new Runnable() {
+            @Override
+            public void run() {
+                BackupHandler.processCycle();
+            }
+        });
+    }
 
     @Override
     public void scheduleJoin(Player player) {
